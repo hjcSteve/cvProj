@@ -253,7 +253,9 @@ def online_phase2(img_target_shape,kp_target,kp_model,good,joning_vectors):
 
 def detect(product_filename,scene_filename,output_image,multi=False):
     if multi:
-        KNN_DISTANCE=0.8
+        knn_distance=0.8
+    else:
+        knn_distance=KNN_DISTANCE
     product_info=ProductInfo()
     product_info.name = extractNameFromExtension(product_filename)
     output = output_image.copy()
@@ -270,78 +272,91 @@ def detect(product_filename,scene_filename,output_image,multi=False):
     r_mean = np.mean(query_r)
     g_mean = np.mean(query_g)
     b_mean = np.mean(query_b)
+    rgb_means = [r_mean,g_mean,b_mean]
+    # the highest mean is the
+    highest_mean_index=rgb_means.index(max(rgb_means))
     #print(r_mean,g_mean,b_mean)
 
     ###----- STEP 1: FEATURE DETECTION AND DESCRIPTION -----###
     # Creating SIFT object
     sift = cv2.SIFT_create(sigma=1.6)
     # Detecting Keypoints in the two images
-    kp_query_r = sift.detect(query_r)
-    kp_query_g = sift.detect(query_g)
-    kp_query_b = sift.detect(query_b)
+
+    # kp_query_r = sift.detect(query_r)
+    # kp_query_g = sift.detect(query_g)
+    # kp_query_b = sift.detect(query_b)
     
-    kp_train_r = sift.detect(train_r)
-    kp_train_g = sift.detect(train_g)
-    kp_train_b = sift.detect(train_b)
+    # kp_train_r = sift.detect(train_r)
+    # kp_train_g = sift.detect(train_g)
+    # kp_train_b = sift.detect(train_b)
 
 
-    good_r=[]
-    good_g=[]
-    good_b=[]
+    # good_r=[]
+    # good_g=[]
+    # good_b=[]
 
-    # # Computing the descriptors for each keypoint
-    # kp_query, des_query = sift.compute(img_query, kp_query)
-    # kp_train, des_train = sift.compute(img_train, kp_train)
-
-    # ###----- STEP 2: FEATURE MATCHING -----###
-    # # Initializing the matching algorithm
-
-    # index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-    # search_params = dict(checks = 50)
-    # flann = cv2.FlannBasedMatcher(index_params, search_params)
-    # # Matching the descriptors
-    # matches = flann.knnMatch(des_query,des_train,k=2)
-    # # Keeping only good matches as per Lowe's ratio test.
-    # good = []
-    # for m,n in matches:
-    #     if m.distance < 0.5*n.distance:
-    #         good.append(m)
     index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
     search_params = dict(checks = 50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-        # Computing the descriptors for each keypoint
-    kp_query_r, des_query_r = sift.compute(query_r, kp_query_r)
-    kp_query_g, des_query_g = sift.compute(query_g, kp_query_g)
-    kp_query_b, des_query_b = sift.compute(query_b, kp_query_b)
+    #     # Computing the descriptors for each keypoint
+    # kp_query_r, des_query_r = sift.compute(query_r, kp_query_r)
+    # kp_query_g, des_query_g = sift.compute(query_g, kp_query_g)
+    # kp_query_b, des_query_b = sift.compute(query_b, kp_query_b)
 
-    kp_train_r, des_train_r = sift.compute(train_r, kp_train_r)
-    kp_train_g, des_train_g = sift.compute(train_g, kp_train_g)
-    kp_train_b, des_train_b = sift.compute(train_b, kp_train_b)
-    ###----- STEP 2: FEATURE MATCHING -----###
-    # Initializing the matching algorithm
-    #print(prod_filename)
-    good_r = []
-    for m,n in flann.knnMatch(des_query_r,des_train_r,k=2):
-        if m.distance < KNN_DISTANCE*n.distance:
-            good_r.append(m)
+    # kp_train_r, des_train_r = sift.compute(train_r, kp_train_r)
+    # kp_train_g, des_train_g = sift.compute(train_g, kp_train_g)
+    # kp_train_b, des_train_b = sift.compute(train_b, kp_train_b)
+    # ###----- STEP 2: FEATURE MATCHING -----###
+    # # Initializing the matching algorithm
+    # #print(prod_filename)
+    # good_r = []
+    # for m,n in flann.knnMatch(des_query_r,des_train_r,k=2):
+    #     if m.distance < KNN_DISTANCE*n.distance:
+    #         good_r.append(m)
 
-    good_g = []
-    for m,n in flann.knnMatch(des_query_g,des_train_g,k=2):
-        if m.distance < KNN_DISTANCE*n.distance:
-            good_g.append(m)
+    # good_g = []
+    # for m,n in flann.knnMatch(des_query_g,des_train_g,k=2):
+    #     if m.distance < KNN_DISTANCE*n.distance:
+    #         good_g.append(m)
 
-    good_b = []
-    for m,n in flann.knnMatch(des_query_b,des_train_b,k=2):
-        if m.distance < KNN_DISTANCE*n.distance:
-            good_b.append(m)
-    #print(len(good_r),len(good_g),len(good_b))
-    # good is who have the max number of matches
-    # using the maximum intensity channel
+    # good_b = []
+    # for m,n in flann.knnMatch(des_query_b,des_train_b,k=2):
+    #     if m.distance < KNN_DISTANCE*n.distance:
+    #         good_b.append(m)
+    # #print(len(good_r),len(good_g),len(good_b))
+    # # good is who have the max number of matches
+    # # using the maximum intensity channel
     
-    good = good_r if r_mean>g_mean else good_g if g_mean>b_mean else good_b
-    kp_query=kp_query_r if r_mean>g_mean else kp_query_g if g_mean>b_mean else kp_query_b
-    kp_train=kp_train_r if r_mean>g_mean else kp_train_g if g_mean>b_mean else kp_train_b
-    
+    # good = good_r if r_mean>g_mean else good_g if g_mean>b_mean else good_b
+    # kp_query=kp_query_r if r_mean>g_mean else kp_query_g if g_mean>b_mean else kp_query_b
+    # kp_train=kp_train_r if r_mean>g_mean else kp_train_g if g_mean>b_mean else kp_train_b
+    good = []
+    if highest_mean_index==0:
+        kp_query = sift.detect(query_r)
+        kp_train = sift.detect(train_r)
+        kp_query, des_query = sift.compute(query_r, kp_query)
+        kp_train, des_train = sift.compute(train_r, kp_train)
+        for m,n in flann.knnMatch(des_query,des_train,k=2):
+            if m.distance < knn_distance*n.distance:
+                good.append(m)
+    elif highest_mean_index==1:
+        kp_query = sift.detect(query_g)
+        kp_train = sift.detect(train_g)
+        kp_query, des_query = sift.compute(query_g, kp_query)
+        kp_train, des_train = sift.compute(train_g, kp_train)
+        for m,n in flann.knnMatch(des_query,des_train,k=2):
+            if m.distance < knn_distance*n.distance:
+                good.append(m)
+    elif highest_mean_index==2:
+        kp_query = sift.detect(query_b)
+        kp_train = sift.detect(train_b)
+        kp_query, des_query = sift.compute(query_b, kp_query)
+        kp_train, des_train = sift.compute(train_b, kp_train)
+        for m,n in flann.knnMatch(des_query,des_train,k=2):
+            if m.distance < knn_distance*n.distance:
+                good.append(m)
+    #print(len(good))
+
 
     ####----- STEP 3: HOMOGRAPHY ESTIMATION -----###
     if multi:
