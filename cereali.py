@@ -136,20 +136,12 @@ def checkCorners(dst):
     # x condition 
     # if left x > right x error
     if(tl[0]>tr[0] or bl[0]>br[0]):
-        #print("x error")
         return False
-    # y condition
-    # if top y > bottom y error
     if(tl[1]>bl[1] or tr[1]>br[1]):
-        #print("y error")
         return False
-    # if opposite y condiction
     if(tl[1]>br[1]):
-        #print("y opposite error")
         return False
-    # if opposite x condiction
     if(tl[0]>br[0]):
-        #print("x opposite error")
         return False
     return True
 # given a query and a train image check if color difference is less than threshold
@@ -205,8 +197,6 @@ def colorCheck(query_filename,train_filename,dst, color_threshold=100):
     color_d = ((r_diff)**2 +(g_diff)**2+(b_diff)**2)**0.5
     if color_d < color_threshold:
         return True
-    #print(str(color_d)+ " "+str(color_threshold)+ " "+str(query_filename))
-
     return False
 
 
@@ -221,7 +211,7 @@ def online_phase2(img_target_shape,kp_target,kp_model,good,joning_vectors):
 
     K=GHT_BINS_NUMBER
     n_bins=K
-    m_bins=img_target_shape[0]//K
+    m_bins=K
     accumulator_array = np.zeros((n_bins,m_bins))
     counter=0
     # Create a dictionary to store values with coordinates as keys
@@ -240,7 +230,7 @@ def online_phase2(img_target_shape,kp_target,kp_model,good,joning_vectors):
         x=round(target_pt.pt[1]+delta_size*x_rotated)
         y=round(target_pt.pt[0]+delta_size*y_rotated)
         i=y//(img_target_shape[1]//n_bins)
-        j=x//(img_target_shape[1]//m_bins)
+        j=x//(img_target_shape[0]//m_bins)
         if (i>=accumulator_array.shape[0] or j>=accumulator_array.shape[1] or i<=0 or j<=0):
             counter=counter+1
             continue
@@ -277,84 +267,34 @@ def detect(product_filename,scene_filename,output_image,multi=False):
     highest_mean_index=rgb_means.index(max(rgb_means))
     #print(r_mean,g_mean,b_mean)
 
-    ###----- STEP 1: FEATURE DETECTION AND DESCRIPTION -----###
+
+    good = []
+    if highest_mean_index==0:
+        query= query_r
+        train= train_r
+    elif highest_mean_index==1:
+        query= query_g
+        train= train_g
+    elif highest_mean_index==2:
+        query= query_b
+        train= train_b
+
+        ###----- STEP 1: FEATURE DETECTION AND DESCRIPTION -----###
     # Creating SIFT object
     sift = cv2.SIFT_create(sigma=1.6)
-    # Detecting Keypoints in the two images
+    kp_query = sift.detect(query)
+    kp_train = sift.detect(train)
+    kp_query, des_query = sift.compute(query, kp_query)
+    kp_train, des_train = sift.compute(train, kp_train)
 
-    # kp_query_r = sift.detect(query_r)
-    # kp_query_g = sift.detect(query_g)
-    # kp_query_b = sift.detect(query_b)
-    
-    # kp_train_r = sift.detect(train_r)
-    # kp_train_g = sift.detect(train_g)
-    # kp_train_b = sift.detect(train_b)
-
-
-    # good_r=[]
-    # good_g=[]
-    # good_b=[]
 
     index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
     search_params = dict(checks = 50)
+
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-    #     # Computing the descriptors for each keypoint
-    # kp_query_r, des_query_r = sift.compute(query_r, kp_query_r)
-    # kp_query_g, des_query_g = sift.compute(query_g, kp_query_g)
-    # kp_query_b, des_query_b = sift.compute(query_b, kp_query_b)
-
-    # kp_train_r, des_train_r = sift.compute(train_r, kp_train_r)
-    # kp_train_g, des_train_g = sift.compute(train_g, kp_train_g)
-    # kp_train_b, des_train_b = sift.compute(train_b, kp_train_b)
-    # ###----- STEP 2: FEATURE MATCHING -----###
-    # # Initializing the matching algorithm
-    # #print(prod_filename)
-    # good_r = []
-    # for m,n in flann.knnMatch(des_query_r,des_train_r,k=2):
-    #     if m.distance < KNN_DISTANCE*n.distance:
-    #         good_r.append(m)
-
-    # good_g = []
-    # for m,n in flann.knnMatch(des_query_g,des_train_g,k=2):
-    #     if m.distance < KNN_DISTANCE*n.distance:
-    #         good_g.append(m)
-
-    # good_b = []
-    # for m,n in flann.knnMatch(des_query_b,des_train_b,k=2):
-    #     if m.distance < KNN_DISTANCE*n.distance:
-    #         good_b.append(m)
-    # #print(len(good_r),len(good_g),len(good_b))
-    # # good is who have the max number of matches
-    # # using the maximum intensity channel
-    
-    # good = good_r if r_mean>g_mean else good_g if g_mean>b_mean else good_b
-    # kp_query=kp_query_r if r_mean>g_mean else kp_query_g if g_mean>b_mean else kp_query_b
-    # kp_train=kp_train_r if r_mean>g_mean else kp_train_g if g_mean>b_mean else kp_train_b
-    good = []
-    if highest_mean_index==0:
-        kp_query = sift.detect(query_r)
-        kp_train = sift.detect(train_r)
-        kp_query, des_query = sift.compute(query_r, kp_query)
-        kp_train, des_train = sift.compute(train_r, kp_train)
-        for m,n in flann.knnMatch(des_query,des_train,k=2):
-            if m.distance < knn_distance*n.distance:
-                good.append(m)
-    elif highest_mean_index==1:
-        kp_query = sift.detect(query_g)
-        kp_train = sift.detect(train_g)
-        kp_query, des_query = sift.compute(query_g, kp_query)
-        kp_train, des_train = sift.compute(train_g, kp_train)
-        for m,n in flann.knnMatch(des_query,des_train,k=2):
-            if m.distance < knn_distance*n.distance:
-                good.append(m)
-    elif highest_mean_index==2:
-        kp_query = sift.detect(query_b)
-        kp_train = sift.detect(train_b)
-        kp_query, des_query = sift.compute(query_b, kp_query)
-        kp_train, des_train = sift.compute(train_b, kp_train)
-        for m,n in flann.knnMatch(des_query,des_train,k=2):
-            if m.distance < knn_distance*n.distance:
-                good.append(m)
+    for m,n in flann.knnMatch(des_query,des_train,k=2):
+        if m.distance < knn_distance*n.distance:
+            good.append(m)
     #print(len(good))
 
 
@@ -465,14 +405,10 @@ def checkOverlaps(product_info:list[ProductInfo]):
                          #quando sono lo stesso prodotto e lo stesso istanza salata
                         if (ii==ij) and (i==j): continue
                         if (instance1.position[0]>=instance2.minx and instance1.position[0]<=instance2.maxx and instance1.position[1]>=instance2.miny and instance1.position[1]<=instance2.maxy):
-                            #print(instance1.position[0],instance1.position[1],instance2.minx,instance2.maxx,instance2.miny,instance2.maxy)
-                            # eliminate the one with less matches
                             if instance1.matches_number>instance2.matches_number:
                                 product_info[j].instances.remove(instance2)
-                                #print("removed "+product_info[j].name+" because of "+product_info[i].name)
                             else:
                                 product_info[i].instances.remove(instance1)
-                                #print("removed "+product_info[i].name+" because of "+product_info[j].name)
     # print("overlaps of "+product_info[i].name+" and "+product_info[j].name)
     return
 
