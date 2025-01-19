@@ -9,5 +9,10 @@ shelf_img Path to the test image
 options:
 -h, --help show this help message and exit
 -s, --save_output Save output images
--t {a,b,}, --test {a,b,}
+-t {a,b,all}, --test {a,b,all}
 test to apply
+-m, --multi detect multiple products
+
+# example to use
+
+python cereali.py -t all models/ scenes/e1.png

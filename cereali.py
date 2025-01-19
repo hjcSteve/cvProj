@@ -9,15 +9,18 @@ import shutil
 parser = argparse.ArgumentParser(usage='%(prog)s [options] <product images directory> <shelf image>')
 
 parser.add_argument('-s','--save_output', help='Save output images',action='store_true')
-parser.add_argument('prod_img_dir', help='Path to the input image directory')
-parser.add_argument('shelf_img', help='Path to the test image')
+parser.add_argument('prod_img_dir', help='Path to the input image directory', nargs='?')
+parser.add_argument('shelf_img', help='Path to the test image', nargs='?')
 parser.add_argument('-t','--test', choices=['a','b','all'],default='',                
                     required=False, help='test to apply')
+parser.add_argument('-m','--multi', help='detect multiple products',action='store_true')
 args = parser.parse_args()
 save_output=args.save_output
-shelf_img_path=args.shelf_img
-prod_img_dir=args.prod_img_dir
 test=args.test  
+if test=='':
+    shelf_img_path=args.shelf_img
+    prod_img_dir=args.prod_img_dir
+MULTI=args.multi
 
 
 class Instance:
@@ -33,9 +36,9 @@ class ProductInfo:
     name=""
     instances :list[Instance]= []
     
-test_models_dir="models"
-test_scenes_dir="scenes"
-MIN_MATCH_COUNT = 50
+models_dir="models"
+scenes_dir="scenes"
+MIN_MATCH_COUNT = 40
 FLANN_INDEX_KDTREE = 1
 LOCAL_MAXIMA_THRESHOLD= 6
 GHT_BINS_NUMBER =20
@@ -52,7 +55,7 @@ def extractNameFromExtension(filename):
 #given a list of ProductInfo print the output
 def print_output(products:list[ProductInfo],scene_filename,save_output=True):
     # open the scene image
-    output = cv2.imread(test_scenes_dir+"/"+scene_filename)
+    output = cv2.imread(scenes_dir+"/"+scene_filename)
     for p in products:
         if len(p.instances)> 0:
             prod_output = np.copy(output)
@@ -62,7 +65,7 @@ def print_output(products:list[ProductInfo],scene_filename,save_output=True):
                 # save the output image
                 if save_output:
                     #print(f"position: ({ins.position[0]},{ins.position[1]}), width: {ins.width}px, height: {ins.height}px")
-                    cv2.rectangle(prod_output, (ins.position[0]-ins.width//2,ins.position[1]-ins.height//2), (ins.position[0]+ins.width//2,ins.position[1]+ins.height//2), (0, 255, 0), 2)
+                    cv2.rectangle(prod_output, (ins.position[0]-ins.width//2,ins.position[1]-ins.height//2), (ins.position[0]+ins.width//2,ins.position[1]+ins.height//2), (0, 255, 0), 4)
                     folder_path = output_dir+"/"+extractNameFromExtension(scene_filename)
                     if not(os.path.exists(folder_path)):
                         os.makedirs(folder_path)
@@ -123,30 +126,30 @@ def checkCorners(dst):
     # x condition 
     # if left x > right x error
     if(tl[0]>tr[0] or bl[0]>br[0]):
-        print("x error")
+        #print("x error")
         return False
     # y condition
     # if top y > bottom y error
     if(tl[1]>bl[1] or tr[1]>br[1]):
-        print("y error")
+        #print("y error")
         return False
     # if opposite y condiction
     if(tl[1]>br[1]):
-        print("y opposite error")
+        #print("y opposite error")
         return False
     # if opposite x condiction
     if(tl[0]>br[0]):
-        print("x opposite error")
+        #print("x opposite error")
         return False
     return True
 # given a query and a train image check if color difference is less than threshold
 def colorCheck(query_filename,train_filename,dst, color_threshold=100):
     # read the query and the train images in rgb
     try :
-        rgb_query = cv2.cvtColor(cv2.imread(test_models_dir+'/'+query_filename),cv2.COLOR_BGR2RGB)
-        rgb_train = cv2.cvtColor(cv2.imread(test_scenes_dir+'/'+train_filename),cv2.COLOR_BGR2RGB)
+        rgb_query = cv2.cvtColor(cv2.imread(models_dir+'/'+query_filename),cv2.COLOR_BGR2RGB)
+        rgb_train = cv2.cvtColor(cv2.imread(scenes_dir+'/'+train_filename),cv2.COLOR_BGR2RGB)
     except:
-        print(f"Error reading images {test_models_dir}/{query_filename} and {test_scenes_dir}/{train_filename}")
+        print(f"Error reading images {models_dir}/{query_filename} and {scenes_dir}/{train_filename}")
         return False
     # split the model into 3 diffent channels of red, green and blue
     r, g, b = cv2.split(rgb_query)
@@ -192,7 +195,7 @@ def colorCheck(query_filename,train_filename,dst, color_threshold=100):
     color_d = ((r_diff)**2 +(g_diff)**2+(b_diff)**2)**0.5
     if color_d < color_threshold:
         return True
-    print(str(color_d)+ " "+str(color_threshold)+ " "+str(query_filename))
+    #print(str(color_d)+ " "+str(color_threshold)+ " "+str(query_filename))
 
     return False
 
@@ -244,8 +247,8 @@ def detect(product_filename,scene_filename,output_image,multi=False):
     output = output_image.copy()
     instances=[]
     # Load the query and the train images
-    img_train = cv2.imread(test_scenes_dir+'/'+scene_filename ) # trainImage
-    img_query = cv2.imread(test_models_dir+'/'+product_filename) # queryImage
+    img_train = cv2.imread(scenes_dir+'/'+scene_filename ) # trainImage
+    img_query = cv2.imread(models_dir+'/'+product_filename) # queryImage
     rgb_query = cv2.cvtColor(img_query, cv2.COLOR_BGR2RGB)
     rgb_train = cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB)
     
@@ -333,8 +336,8 @@ def detect(product_filename,scene_filename,output_image,multi=False):
         #query === model
         joning_vectors = offline_phase2(kp_query)
         local_maxima, acc_matches=online_phase2(img_target_shape=img_train.shape,kp_target=kp_train,kp_model=kp_query,good=good,joning_vectors=joning_vectors)
-        if len(local_maxima)>0:
-            print("local maxima "+str(len(local_maxima)) +" acc matches "+ str(len(acc_matches)) + " images " + str(product_filename)) 
+        #if len(local_maxima)>0:
+            #print("local maxima "+str(len(local_maxima)) +" acc matches "+ str(len(acc_matches)) + " images " + str(product_filename)) 
         for coord in local_maxima:
             # If we have at least 10 matches we find the box of the object
             good=acc_matches[coord[0]][coord[1]]
@@ -358,8 +361,8 @@ def detect(product_filename,scene_filename,output_image,multi=False):
                         # Add to instances for output
                         instance = getInstance(dst,len(good))
                         instances.append(instance)
-                    else:
-                        print("Color check failed")
+                    #else:
+                        #print("Color check failed")
     else:
         # If we have at least 10 matches we find the box of the object
         if len(good)>MIN_MATCH_COUNT:
@@ -408,20 +411,6 @@ def calculate_joining_vectors(keypoints, reference):
         joining_vectors.append((vector_x, vector_y))
     
     return joining_vectors
-      ## OFFLINE PHASE 
-def offline_phase(img_model):
-    # Creating SIFT object
-    sift = cv2.SIFT_create(sigma = 1.6)
-    # 1 - Detect kpts and compute the descriptors in the model image 
-    kp_model = sift.detect(img_model)
-    kp_model, des_model = sift.compute(img_model, kp_model)
-    # 2 - Choose the baricenter as reference point 
-    ref_point= calculate_barycenter(kp_model)
-    # 3- for every feature pts calculate the joing vectoor to the refrence pts
-    joning_vectors=calculate_joining_vectors(keypoints=kp_model,reference=ref_point)
-    return kp_model, des_model,joning_vectors
-
-
 def find_local_maxima_above_threshold(arr, threshold):
     # Create a filter that marks the local maxima
     neighborhood_size = 5  # Neighborhood size for comparison
@@ -437,270 +426,89 @@ def find_local_maxima_above_threshold(arr, threshold):
     # Extract the coordinates of the local maxima
     maxima_coords = np.column_stack(np.where(labeled > 0))
     return maxima_coords
-def online_phase(img_target,des_model,kp_model,joning_vectors):
-     # Creating SIFT object
-    sift = cv2.SIFT_create(sigma = 1.0)
-    # 1 - Detect keypoints and compute descriptors in the target image and initialize an accumulator array, A[Pc]
-    kp_target = sift.detect(img_target)
-    kp_target, des_target = sift.compute(img_target, kp_target)
-    # 2 - Match descriptors between target and model features
-    # Initializing the matching algorithm
-    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-    search_params = dict(checks = 50)
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    # Matching the descriptors
-    matches = flann.knnMatch(des_model,des_target,k=2)
-    # Keeping only good matches as per Lowe's ratio test.
-    good = []
-    for m,n in matches:
-        if m.distance < 0.9*n.distance:
-            good.append(m)
-    K=GHT_BINS_NUMBER
-    n_bins=img_target.shape[1]//K
-    m_bins=img_target.shape[0]//K
-    accumulator_array = np.zeros((n_bins,m_bins))
-    counter=0
-    # Create a dictionary to store values with coordinates as keys
-    acc_matches  = [[[] for _ in range(m_bins)] for _ in range(n_bins)]
-    for m in good:
-        model_pt=kp_model[m.queryIdx]
-        target_pt=kp_target[m.trainIdx]
-        delta_angle= np.radians(target_pt.angle-model_pt.angle)
-        x_vector=joning_vectors[m.queryIdx][1]
-        y_vector=joning_vectors[m.queryIdx][0]
-        delta_size=target_pt.size/model_pt.size   
-
-        x_rotated= x_vector * np.cos(delta_angle) - y_vector* np.sin(delta_angle)
-        y_rotated=x_vector * np.sin(delta_angle) +  y_vector * np.cos(delta_angle)
-
-        x=round(target_pt.pt[1]+delta_size*x_rotated)
-        y=round(target_pt.pt[0]+delta_size*y_rotated)
-        i=y//K
-        j=x//K
-        if (i>=accumulator_array.shape[0] or j>=accumulator_array.shape[1] or i<=0 or j<=0):
-            counter=counter+1
-            continue
-        accumulator_array[i][j]+=1
-        acc_matches[i][j].append(m)
-
-    local_maxima = find_local_maxima_above_threshold(accumulator_array,5)
-
-    return local_maxima, acc_matches, kp_target
-
-
 
 #check if two instances overlap, if the position(center) is inside the other instance
 def checkOverlaps(product_info:list[ProductInfo]):
     #filtr the products with no instances
     for i in range(len(product_info)):
         for j in range(len(product_info)):
-            print("--- check overlaps of "+product_info[i].name+" and "+product_info[j].name)
+            #print("--- check overlaps of "+product_info[i].name+" and "+product_info[j].name)
             for ii,instance1 in enumerate(product_info[i].instances):
                 for ij,instance2 in enumerate(product_info[j].instances):
                          #quando sono lo stesso prodotto e lo stesso istanza salata
                         if (ii==ij) and (i==j): continue
                         if (instance1.position[0]>=instance2.minx and instance1.position[0]<=instance2.maxx and instance1.position[1]>=instance2.miny and instance1.position[1]<=instance2.maxy):
-                            print(instance1.position[0],instance1.position[1],instance2.minx,instance2.maxx,instance2.miny,instance2.maxy)
+                            #print(instance1.position[0],instance1.position[1],instance2.minx,instance2.maxx,instance2.miny,instance2.maxy)
                             # eliminate the one with less matches
                             if instance1.matches_number>instance2.matches_number:
                                 product_info[j].instances.remove(instance2)
-                                print("removed "+product_info[j].name+" because of "+product_info[i].name)
+                                #print("removed "+product_info[j].name+" because of "+product_info[i].name)
                             else:
                                 product_info[i].instances.remove(instance1)
-                                print("removed "+product_info[i].name+" because of "+product_info[j].name)
+                                #print("removed "+product_info[i].name+" because of "+product_info[j].name)
     # print("overlaps of "+product_info[i].name+" and "+product_info[j].name)
     return
 
 
-def detectMulti(product_name_full, scene_path,output_image):
-    product_info=ProductInfo()
-    product_info.name = re.sub(r"\.[^.]*$", "", product_name_full)
-    output = output_image.copy()
-    instances=[]
-
-    img_train = cv2.imread(scene_path,0) # trainImage
-
-    img_model = cv2.imread(test_models_dir+'/'+product_name_full,0) # queryImage
-    rgb_model = cv2.imread(test_models_dir+'/'+product_name_full, cv2.COLOR_BGR2RGB) 
-    # split the model into 3 diffent channels of red, green and blue
-    r, g, b = cv2.split(rgb_model)
-    # save the means of intensity for each channel
-    r_mean = np.mean(r)
-    g_mean = np.mean(g)
-    b_mean = np.mean(b)
-
-    kp_model, des_model,joning_vectors = offline_phase(img_model=img_model)
-    local_maxima, acc_matches, kp_target=online_phase(img_target=img_train,des_model=des_model,kp_model=kp_model,joning_vectors=joning_vectors)
-    for coord in local_maxima:
-        # If we have at least 10 matches we find the box of the object
-        good=acc_matches[coord[0]][coord[1]]
-        #print(len(good))
-        if len(good)>MIN_MATCH_COUNT:
-            src_pts = np.float32([ kp_model[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
-            dst_pts = np.float32([ kp_target[m.trainIdx].pt for m in good ]).reshape(-1,1,2)        
-            # Calculating homography based on correspondences
-            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            # Apply homography to project corners of the query image into the image
-            h,w = img_model.shape
-            pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
-            dst = cv2.perspectiveTransform(pts,M) 
-            instance=Instance()
-            width_box = dst[2][0][0] - dst[0][0][0]
-            height_box = dst[2][0][1] - dst[0][0][1]
-            x_center_box=round(dst[0][0][0]+(width_box)/2)
-            y_center_box=round(dst[0][0][1]+(height_box)/2)
-            tl = dst[0][0] # x y
-            bl = dst[1][0]
-            br = dst[2][0]
-            tr = dst[3][0]
-            # only > 0 coordinate
-            if(tl[0]<0):
-                tl[0]=0
-            if(tl[1]<0):
-                tl[1]=0
-            if(br[0]<0):
-                br[0]=0
-            if(br[1]<0):
-                br[1]=0 
-            if(tr[0]<0):
-                tr[0]=0
-            if(tr[1]<0):
-                tr[1]=0
-            if(bl[0]<0):
-                bl[0]=0
-            if(bl[1]<0):
-                bl[1]=0
-            #crop the region of interest of the scene image rgb, y x 
-            crop_img = rgb_scene[int(tl[1]):int(br[1]),int(tl[0]):int(br[0])]
-            r_crop, g_crop, b_crop = cv2.split(crop_img)
-            r_crop_mean = np.mean(r_crop)
-            g_crop_mean = np.mean(g_crop)
-            b_crop_mean = np.mean(b_crop)
-            # compute the difference between the means of the channels in the cropped image and the means of the channels in the model image
-            r_diff = r_crop_mean - r_mean
-            g_diff = g_crop_mean - g_mean
-            b_diff = b_crop_mean - b_mean
-            # if the difference is less tha a thereshold, the object is the same
-            #print(r_diff,g_diff,b_diff)
-            color_d = ((r_diff)**2 +(g_diff)**2+(b_diff)**2)**0.5
-            #print(color_d)
-            if color_d >  60:
-                print("not color")
-                continue
-
-            instance.position= (x_center_box,y_center_box)
-            instance.width=round(width_box)
-            instance.height = round(height_box)
-            instances.append(instance)        
-            # Drawing bounding box
-            output = cv2.polylines(output,[np.int32(dst)],True,(0,255,0),3, cv2.LINE_AA)
-        else:
-            #print( "Not enough matches are found - {}/{}".format(len(good), MIN_MATCH_COUNT) )
-            matchesMask = None
-            
-    product_info.instances=instances
-
-    return product_info, output
-
-found=[]
-if test=='a':
-    test_A={
-    "scenes": {"e1.png", "e2.png", "e3.png", "e4.png", "e5.png"},
-    "products":{"0.jpg", "1.jpg", "11.jpg", "19.jpg", "24.jpg", "26.jpg", "25.jpg"}
-    }
-    # delete the output folder if exists
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-        # create the output folder
-        os.makedirs(output_dir)
-    for scene_name in test_A["scenes"]:
+def print_scene(scene,products):
+    for scene_name in scene:
         found=[]
-        
         print(f'------------ scena {extractNameFromExtension(scene_name)} ------------')
-        rgb_scene = cv2.imread(test_scenes_dir+'/'+scene_name,cv2.COLOR_BGR2RGB) # trainImage
-        for prod_filename in test_A["products"]:
-            product_info,output=detect(prod_filename,scene_name,rgb_scene)
+        rgb_scene = cv2.imread(scenes_dir+'/'+scene_name,cv2.COLOR_BGR2RGB) # trainImage
+        for prod_filename in products:
+            product_info,output=detect(prod_filename,scene_name,rgb_scene,MULTI)
             found.append(product_info)
+        #filter the products with no instances
+        found=[x for x in found if x.instances]
         checkOverlaps(found)
         print_output(products=found,scene_filename=scene_name)
     print("done")
 
+
+
+# mainnnn
+found=[]
+# delete the output folder if exists
+if os.path.exists(output_dir):
+    shutil.rmtree(output_dir)
+    # create the output folder
+    os.makedirs(output_dir)
+test_A={
+    "scenes": {"e1.png", "e2.png", "e3.png", "e4.png", "e5.png"},
+    "products":{"0.jpg", "1.jpg", "11.jpg", "19.jpg", "24.jpg", "26.jpg", "25.jpg"}
+}
+test_B={
+    "scenes": {"m1.png", "m2.png", "m3.png", "m4.png", "m5.png"},
+    "products":{"0.jpg", "1.jpg", "11.jpg", "19.jpg", "24.jpg", "26.jpg", "25.jpg"}
+}
+
+
+
+if test=='a':
+    MULTI=False
+    print_scene(test_A["scenes"],test_A["products"])
+
 if test=='b':
-    test_B={
-        "scenes": {"m1.png", "m2.png", "m3.png", "m4.png", "m5.png"},
-        "products":{"0.jpg", "1.jpg", "11.jpg", "19.jpg", "24.jpg", "26.jpg", "25.jpg"}
-    }
-
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-        # create the output folder
-        os.makedirs(output_dir)
-    for scene_name in test_B["scenes"]:
-        found=[]
-        
-        print(f'------------ scena {extractNameFromExtension(scene_name)} ------------')
-        rgb_scene = cv2.imread(test_scenes_dir+'/'+scene_name,cv2.COLOR_BGR2RGB) # trainImage
-        for prod_filename in test_B["products"]:
-            product_info,output=detect(prod_filename,scene_name,rgb_scene,multi=True)
-            found.append(product_info)
-        filtered_products = list(filter(lambda p: len(p.instances)>0, found))
-        checkOverlaps(filtered_products)
-        print_output(products=filtered_products,scene_filename=scene_name)
-    print("done")
-
+    MULTI=True
+    print_scene(test_B["scenes"],test_B["products"])
 if test=='all':
-    test_A={
-        "scenes": {"e1.png", "e2.png", "e3.png", "e4.png", "e5.png"},
-        "products":{"0.jpg", "1.jpg", "11.jpg", "19.jpg", "24.jpg", "26.jpg", "25.jpg"}
-    }
-    test_B={
-        "scenes": {"m1.png", "m2.png", "m3.png", "m4.png", "m5.png"},
-        "products":{"0.jpg", "1.jpg", "11.jpg", "19.jpg", "24.jpg", "26.jpg", "25.jpg"}
-    }
-
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-        # create the output folder
-        os.makedirs(output_dir)
-    for scene_name in test_B["scenes"]:
-        found=[]
-        
-        print(f'------------ scena {extractNameFromExtension(scene_name)} ------------')
-        rgb_scene = cv2.imread(test_scenes_dir+'/'+scene_name,cv2.COLOR_BGR2RGB) # trainImage
-        for prod_filename in test_B["products"]:
-            product_info,output=detect(prod_filename,scene_name,rgb_scene,multi=True)
-            found.append(product_info)
-        filtered_products = list(filter(lambda p: len(p.instances)>0, found))
-        checkOverlaps(filtered_products)
-        print_output(products=filtered_products,scene_filename=scene_name)
-    for scene_name in test_A["scenes"]:
-        found=[]
-        
-        print(f'------------ scena {extractNameFromExtension(scene_name)} ------------')
-        rgb_scene = cv2.imread(test_scenes_dir+'/'+scene_name,cv2.COLOR_BGR2RGB) # trainImage
-        for prod_filename in test_A["products"]:
-            product_info,output=detect(prod_filename,scene_name,rgb_scene,multi=True)
-            found.append(product_info)
-        filtered_products = list(filter(lambda p: len(p.instances)>0, found))
-        checkOverlaps(filtered_products)
-        print_output(products=filtered_products,scene_filename=scene_name)
-    print("done")
-
+    MULTI=False
+    print_scene(test_A["scenes"],test_A["products"])
+    MULTI=True
+    print_scene(test_B["scenes"],test_B["products"])
 if test=='':
-    shelf_name = re.sub(r"\.[^.]*$", "", shelf_img_path.split("/")[-1])
-    print(f'scena {shelf_name}')
-    rgb_scene = cv2.imread(shelf_img_path,cv2.COLOR_BGR2RGB) # trainImage
-    prod_filenames = os.listdir(prod_img_dir)
-    for p in prod_filenames:
-        p_name = re.sub(r"\.[^.]*$", "", p)
-        product_info,output=detectMulti(p,shelf_img_path,rgb_scene)
-        found.append(product_info)
-        if save_output:
-            if len(product_info.instances)> 0:
-                folder_path = output_dir+"/"+str(shelf_name)
-                if not(os.path.exists(folder_path)):
-                    os.makedirs(folder_path)
-                cv2.imwrite(folder_path+"/"+str(p_name)+".jpg",output)
-    sorted_found = sorted(found, key=lambda p: int(p.name) if (p.name.isdigit()) else p.name)
-    print_output(products=sorted_found,scene_name=shelf_name)
+    #split it into directory and file name
+    scene_filanames = []
+    product_filenames = []
+    # Extract directory
+    scenes_dir = os.path.dirname(shelf_img_path)
+    # Extract file name
+    scene_filanames.append(os.path.basename(shelf_img_path))
+    # Extract directory
+    extensions = (".png", ".jpeg", ".jpg")
+    models_dir = prod_img_dir
+    files = [f for f in os.listdir(prod_img_dir) if f.lower().endswith(extensions)]
+    for f in files:
+        product_filenames.append(f)
+    print_scene(scene_filanames,product_filenames)
 
