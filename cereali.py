@@ -1,3 +1,4 @@
+
 import numpy as np
 import cv2
 from matplotlib import pyplot as plt
@@ -6,15 +7,24 @@ import re
 import os
 import argparse
 import shutil
-parser = argparse.ArgumentParser(usage='%(prog)s [options] <product images directory> <shelf image>')
+parser = argparse.ArgumentParser(usage='%(prog)s [options]')
 
-parser.add_argument('-s','--save_output', help='Save output images',action='store_true')
-parser.add_argument('prod_img_dir', help='Path to the input image directory', nargs='?')
-parser.add_argument('shelf_img', help='Path to the test image', nargs='?')
+parser.add_argument('-o','--save_output', help='Save output images',action='store_true')
+parser.add_argument('-p','--prod_img_dir', help='Path to the input image directory')
+parser.add_argument('-s','--shelf_img', help='Path to the test image')
 parser.add_argument('-t','--test', choices=['a','b','all'],default='',                
                     required=False, help='test to apply')
 parser.add_argument('-m','--multi', help='detect multiple products',action='store_true')
+
+
 args = parser.parse_args()
+# Custom validation logic
+if args.test == '' and (not args.shelf_img or not args.prod_img_dir):
+    print("Error: -p/--prod_img_dir and -s/--shelf_img are required if -t is empty.")
+    parser.print_help()
+    exit(1)
+
+
 save_output=args.save_output
 test=args.test  
 if test=='':
@@ -46,7 +56,7 @@ debug=False
 found=[]
 output_dir="output"
 
-KNN_DISTANCE=0.8
+KNN_DISTANCE=0.7
 
 def extractNameFromExtension(filename):
     return re.sub(r"\.[^.]*$", "", filename)
@@ -242,6 +252,8 @@ def online_phase2(img_target_shape,kp_target,kp_model,good,joning_vectors):
     return local_maxima, acc_matches
 
 def detect(product_filename,scene_filename,output_image,multi=False):
+    if multi:
+        KNN_DISTANCE=0.8
     product_info=ProductInfo()
     product_info.name = extractNameFromExtension(product_filename)
     output = output_image.copy()

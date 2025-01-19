@@ -15,4 +15,7 @@ test to apply
 
 # example to use
 
-python cereali.py -t all models/ scenes/e1.png
+```
+python cereali.py -t all
+python cereali.py  -p models/ -s scenes/e1.png
+```
